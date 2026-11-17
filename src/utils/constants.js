@@ -1,7 +1,6 @@
 export const USER_ROLES = Object.freeze({
   VOLUNTEER: 'volunteer',
   NGO_ADMIN: 'ngo_admin',
-  NGO_MEMBER: 'ngo_member',
 })
 
 export const EVENT_STATUSES = Object.freeze({

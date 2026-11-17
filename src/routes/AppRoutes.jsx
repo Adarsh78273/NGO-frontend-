@@ -16,12 +16,8 @@ import NgoDashboardPage from '../pages/ngo/NgoDashboardPage'
 import EventsManagementPage from '../pages/ngo/EventsManagementPage'
 import EventFormPage from '../pages/ngo/EventFormPage'
 import EventManagementDetailsPage from '../pages/ngo/EventManagementDetailsPage'
-import TeamManagementPage from '../pages/ngo/TeamManagementPage'
 import NgoVolunteersPage from '../pages/ngo/NgoVolunteersPage'
 import ReportsPage from '../pages/ngo/ReportsPage'
-import MemberQrPage from '../pages/member/MemberQrPage'
-import MemberVolunteersPage from '../pages/member/MemberVolunteersPage'
-import MemberAttendancePage from '../pages/member/MemberAttendancePage'
 
 const QrScanPage = lazy(() => import('../pages/volunteer/QrScanPage'))
 
@@ -29,7 +25,6 @@ export default function AppRoutes() { return <Suspense fallback={<div className=
   <Route element={<PublicLayout />}><Route path="/" element={<PublicHomePage />} /><Route path="/login" element={<LoginPage />} /><Route path="/signup" element={<SignUpPage />} /></Route>
   <Route element={<ProtectedRoute />}><Route element={<DashboardLayout />}>
     <Route element={<RoleGuard allowedRoles={['volunteer']} />}><Route path="/volunteer/dashboard" element={<VolunteerDashboardPage />} /><Route path="/volunteer/events" element={<EventsListPage />} /><Route path="/volunteer/events/:eventId" element={<EventDetailsPage />} /><Route path="/volunteer/my-events" element={<MyEventsPage />} /><Route path="/volunteer/scan" element={<QrScanPage />} /><Route path="/volunteer/profile" element={<VolunteerProfilePage />} /></Route>
-    <Route element={<RoleGuard allowedRoles={['ngo_admin']} />}><Route path="/ngo/dashboard" element={<NgoDashboardPage />} /><Route path="/ngo/events" element={<EventsManagementPage />} /><Route path="/ngo/events/new" element={<EventFormPage />} /><Route path="/ngo/events/:eventId" element={<EventManagementDetailsPage />} /><Route path="/ngo/team" element={<TeamManagementPage />} /><Route path="/ngo/volunteers" element={<NgoVolunteersPage />} /><Route path="/ngo/reports" element={<ReportsPage />} /></Route>
-    <Route element={<RoleGuard allowedRoles={['ngo_member']} />}><Route path="/member/qr" element={<MemberQrPage />} /><Route path="/member/volunteers" element={<MemberVolunteersPage />} /><Route path="/member/attendance" element={<MemberAttendancePage />} /></Route>
+    <Route element={<RoleGuard allowedRoles={['ngo_admin']} />}><Route path="/ngo/dashboard" element={<NgoDashboardPage />} /><Route path="/ngo/events" element={<EventsManagementPage />} /><Route path="/ngo/events/new" element={<EventFormPage />} /><Route path="/ngo/events/:eventId" element={<EventManagementDetailsPage />} /><Route path="/ngo/volunteers" element={<NgoVolunteersPage />} /><Route path="/ngo/reports" element={<ReportsPage />} /></Route>
   </Route></Route><Route path="*" element={<Navigate to="/" replace />} />
 </Routes></Suspense> }

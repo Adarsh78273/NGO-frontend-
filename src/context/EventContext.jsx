@@ -1,47 +1,88 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { useAuth } from './AuthContext'
+import { attendanceApi, eventApi } from '../services/api'
 
 const EventContext = createContext(null)
-const EVENTS_KEY = 'ngo-connect-events'
-const REGISTRATIONS_KEY = 'ngo-connect-registrations'
-const initialEvents = [
-  { id: 'clean-city-drive', title: 'Clean City Drive', description: 'Join our neighborhood clean-up campaign.', date: '2026-10-04', time: '09:00', location: 'Central Park Gate', capacity: 50, status: 'live', memberIds: [], memberAssignments: [], qrToken: null, qrUpdatedAt: null },
-  { id: 'tree-plantation', title: 'Tree Plantation Day', description: 'Help plant native trees in the community.', date: '2026-10-12', time: '07:30', location: 'Riverfront Garden', capacity: 80, status: 'live', memberIds: [], memberAssignments: [], qrToken: null, qrUpdatedAt: null },
-]
-function read(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback } catch { return fallback } }
-function normalizeEvent(event) {
-  return {
-    ...event,
-    status: event.status === 'published' ? 'live' : (event.status ?? 'draft'),
-    memberIds: event.memberIds ?? [],
-    memberAssignments: event.memberAssignments ?? [],
-    qrToken: event.qrToken ?? null,
-    qrUpdatedAt: event.qrUpdatedAt ?? null,
-  }
-}
 
 export function EventProvider({ children }) {
-  const [events, setEvents] = useState(() => read(EVENTS_KEY, initialEvents).map(normalizeEvent))
-  const [registrations, setRegistrations] = useState(() => read(REGISTRATIONS_KEY, []))
-  useEffect(() => localStorage.setItem(EVENTS_KEY, JSON.stringify(events)), [events])
-  useEffect(() => localStorage.setItem(REGISTRATIONS_KEY, JSON.stringify(registrations)), [registrations])
-  function createEvent(details) { const memberIds = details.memberIds ?? []; const designation = details.memberDesignation || 'NGO Member'; setEvents((current) => [...current, { ...details, memberIds, memberAssignments: memberIds.map((memberId) => ({ memberId, designation })), id: crypto.randomUUID(), status: 'draft', qrToken: null, qrUpdatedAt: null }]) }
-  function updateEvent(id, details) { setEvents((current) => current.map((event) => event.id === id ? { ...event, ...details } : event)) }
-  function setEventStatus(id, status) { updateEvent(id, { status }) }
-  function generateQr(id) { const qrToken = crypto.randomUUID(); updateEvent(id, { qrToken, qrUpdatedAt: new Date().toLocaleString() }); return qrToken }
-  function assignMember(eventId, memberId, designation = 'NGO Member') { setEvents((current) => current.map((event) => { if (event.id !== eventId) return event; const assignments = event.memberAssignments ?? []; const exists = assignments.some((item) => item.memberId === memberId); return { ...event, memberIds: [...new Set([...(event.memberIds ?? []), memberId])], memberAssignments: exists ? assignments.map((item) => item.memberId === memberId ? { ...item, designation } : item) : [...assignments, { memberId, designation }] } })) }
-  function registerForEvent(eventId, volunteer) {
-    if (registrations.some((item) => item.eventId === eventId && item.volunteerId === volunteer.id)) throw new Error('You are already registered for this event.')
-    const event = events.find((item) => item.id === eventId); const count = registrations.filter((item) => item.eventId === eventId).length
-    if (!event || event.status !== 'live' || count >= event.capacity) throw new Error('This event is not open for registration.')
-    setRegistrations((current) => [...current, { id: crypto.randomUUID(), eventId, volunteerId: volunteer.id, volunteerName: volunteer.name, volunteerEmail: volunteer.email, attended: false, checkedInAt: null }])
+  const { user, isLoading: authLoading } = useAuth()
+  const [events, setEvents] = useState([])
+  const [registrations, setRegistrations] = useState([])
+  const [loadedUserId, setLoadedUserId] = useState(null)
+  const [error, setError] = useState('')
+
+  const refresh = useCallback(async () => {
+    if (!user) return
+    setError('')
+    const [nextEvents, nextRegistrations] = await Promise.all([
+      eventApi.list(),
+      attendanceApi.listMine(),
+    ])
+    setEvents(nextEvents)
+    setRegistrations(nextRegistrations)
+  }, [user])
+
+  useEffect(() => {
+    let isMounted = true
+    if (authLoading) return () => { isMounted = false }
+    if (!user) return () => { isMounted = false }
+
+    Promise.all([eventApi.list(), attendanceApi.listMine()])
+      .then(([nextEvents, nextRegistrations]) => {
+        if (!isMounted) return
+        setEvents(nextEvents)
+        setRegistrations(nextRegistrations)
+        setError('')
+      })
+      .catch((loadError) => { if (isMounted) setError(loadError.message) })
+      .finally(() => { if (isMounted) setLoadedUserId(user.id) })
+    return () => { isMounted = false }
+  }, [authLoading, refresh, user])
+
+  async function createEvent(details) {
+    const createdEvent = await eventApi.create(details)
+    setEvents((current) => [...current, createdEvent])
+    return createdEvent
   }
-  function markAttendance(eventId, volunteerId) {
-    const registration = registrations.find((item) => item.eventId === eventId && item.volunteerId === volunteerId)
-    if (!registration) throw new Error('You are not registered for this event.')
-    if (registration.attended) throw new Error('Attendance is already marked for this event.')
-    setRegistrations((current) => current.map((item) => item.id === registration.id ? { ...item, attended: true, checkedInAt: new Date().toLocaleString() } : item))
+
+  async function updateEvent(id, details) {
+    const updatedEvent = await eventApi.update(id, details)
+    setEvents((current) => current.map((event) => event.id === id ? updatedEvent : event))
+    return updatedEvent
   }
-  function eventRegistrations(eventId) { return registrations.filter((item) => item.eventId === eventId) }
-  return <EventContext.Provider value={{ events, registrations, createEvent, updateEvent, setEventStatus, generateQr, assignMember, registerForEvent, markAttendance, eventRegistrations }}>{children}</EventContext.Provider>
+
+  async function setEventStatus(id, status) {
+    return updateEvent(id, { status })
+  }
+
+  async function generateQr(id) {
+    const qr = await eventApi.generateQr(id)
+    setEvents((current) => current.map((event) => event.id === id ? { ...event, ...qr } : event))
+    return qr.qrToken
+  }
+
+  async function registerForEvent(eventId) {
+    const registration = await eventApi.register(eventId)
+    setRegistrations((current) => [...current, registration])
+    return registration
+  }
+
+  async function markAttendance(eventId, qrToken) {
+    const updatedRegistration = await attendanceApi.checkIn(eventId, qrToken)
+    setRegistrations((current) => current.map((item) => item.id === updatedRegistration.id ? updatedRegistration : item))
+    return updatedRegistration
+  }
+
+  function eventRegistrations(eventId) {
+    return registrations.filter((item) => item.eventId === eventId)
+  }
+
+  return <EventContext.Provider value={{ events: user ? events : [], registrations: user ? registrations : [], isLoading: authLoading || (Boolean(user) && loadedUserId !== user.id), error: user ? error : '', refresh, createEvent, updateEvent, setEventStatus, generateQr, registerForEvent, markAttendance, eventRegistrations }}>{children}</EventContext.Provider>
 }
-export function useEvents() { const context = useContext(EventContext); if (!context) throw new Error('useEvents must be used inside EventProvider.'); return context }
+
+// oxlint-disable-next-line react/only-export-components
+export function useEvents() {
+  const context = useContext(EventContext)
+  if (!context) throw new Error('useEvents must be used inside EventProvider.')
+  return context
+}

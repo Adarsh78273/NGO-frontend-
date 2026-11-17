@@ -1,7 +1,7 @@
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
-const dashboardPaths = { volunteer: '/volunteer/dashboard', ngo_admin: '/ngo/dashboard', ngo_member: '/member/qr' }
+const dashboardPaths = { volunteer: '/volunteer/dashboard', ngo_admin: '/ngo/dashboard' }
 
 export default function PublicLayout() {
   const { user } = useAuth()

@@ -3,20 +3,48 @@ import { useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import './LoginPage.css'
 
-export default function SignUpPage() {
-  const { user, register } = useAuth()
-  const navigate = useNavigate()
-  const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '', role: 'volunteer' })
-  const [error, setError] = useState('')
-  if (user) return <Navigate to="/" replace />
+const dashboardRoutes = { volunteer: '/volunteer/dashboard', ngo_admin: '/ngo/dashboard' }
 
-  function updateField(event) { setForm((current) => ({ ...current, [event.target.name]: event.target.value })); setError('') }
-  function handleSubmit(event) {
-    event.preventDefault()
-    if (form.password.length < 6) return setError('Use a password with at least 6 characters.')
-    if (form.password !== form.confirmPassword) return setError('Passwords do not match.')
-    try { register(form); navigate('/login', { replace: true, state: { message: 'Account created. Please sign in.' } }) } catch (registerError) { setError(registerError.message) }
+export default function SignUpPage() {
+  const { user, isLoading, register } = useAuth()
+  const navigate = useNavigate()
+  const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '' })
+  const [error, setError] = useState('')
+  if (isLoading) return <p className="route-loading" role="status">Checking your session…</p>
+  if (user) return <Navigate to={dashboardRoutes[user.role] ?? '/'} replace />
+
+  function updateField(event) {
+    setForm((current) => ({ ...current, [event.target.name]: event.target.value }))
+    setError('')
   }
 
-  return <section className="login-page"><form className="login-card" onSubmit={handleSubmit}><div className="login-heading"><p className="eyebrow">NGO CONNECT</p><h1>Create your account</h1><p>Every new member must sign up before logging in.</p></div>{error && <p className="form-error" role="alert">{error}</p>}<label htmlFor="name">Full name</label><input id="name" name="name" value={form.name} onChange={updateField} required /><label htmlFor="signup-email">Email address</label><input id="signup-email" name="email" type="email" value={form.email} onChange={updateField} required /><label htmlFor="signup-role">Account type</label><select id="signup-role" name="role" value={form.role} onChange={updateField}><option value="volunteer">Volunteer</option><option value="ngo_admin">NGO Admin</option></select><p className="role-note">NGO Members are created by an NGO Admin from Team Management.</p><label htmlFor="signup-password">Password</label><input id="signup-password" name="password" type="password" value={form.password} onChange={updateField} minLength="6" required /><label htmlFor="confirm-password">Confirm password</label><input id="confirm-password" name="confirmPassword" type="password" value={form.confirmPassword} onChange={updateField} required /><button type="submit">Create account</button><p className="signup-link">Already have an account? <Link to="/login">Login</Link></p></form></section>
+  async function handleSubmit(event) {
+    event.preventDefault()
+    if (form.password.length < 8 || form.password.length > 72) {
+      setError('Use a password between 8 and 72 characters.')
+      return
+    }
+    if (form.password !== form.confirmPassword) {
+      setError('Passwords do not match.')
+      return
+    }
+    try {
+      await register({ name: form.name, email: form.email, password: form.password })
+      navigate('/login', { replace: true, state: { message: 'Account created. Please sign in.' } })
+    } catch (registerError) {
+      setError(registerError.message)
+    }
+  }
+
+  return <section className="login-page"><form className="login-card" onSubmit={handleSubmit}>
+    <div className="login-heading"><p className="eyebrow">NGO CONNECT</p><h1>Create your account</h1><p>Join the volunteer community and take part in local events.</p></div>
+    {error && <p className="form-error" role="alert">{error}</p>}
+    <label htmlFor="name">Full name</label><input id="name" name="name" value={form.name} onChange={updateField} autoComplete="name" maxLength="100" required />
+    <label htmlFor="signup-email">Email address</label><input id="signup-email" name="email" type="email" value={form.email} onChange={updateField} autoComplete="email" required />
+    <label htmlFor="signup-password">Password</label><input id="signup-password" name="password" type="password" value={form.password} onChange={updateField} minLength="8" maxLength="72" autoComplete="new-password" required />
+    <label htmlFor="confirm-password">Confirm password</label><input id="confirm-password" name="confirmPassword" type="password" value={form.confirmPassword} onChange={updateField} autoComplete="new-password" required />
+    <p className="role-note">NGO Admin accounts are created securely by the project administrator.</p>
+    <button type="submit">Create volunteer account</button>
+    <p className="signup-link">Already have an account? <Link to="/login">Login</Link></p>
+  </form></section>
 }

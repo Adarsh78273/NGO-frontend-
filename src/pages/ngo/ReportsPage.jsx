@@ -1,3 +1,12 @@
 import { useEvents } from '../../context/EventContext'
-import { useAuth } from '../../context/AuthContext'
-export default function ReportsPage() { const { events, registrations } = useEvents(); const { getNgoMembers } = useAuth(); const members = getNgoMembers(); return <section><h1>Event Progress Reports</h1><p>After an event is closed, use this page to review its completion progress and contact its assigned team directly.</p>{events.map((event) => { const records = registrations.filter((item) => item.eventId === event.id); const present = records.filter((item) => item.attended).length; const assigned = members.filter((member) => (event.memberIds ?? []).includes(member.id)); return <article className="event-card" key={event.id}><h2>{event.title} <span className="status">{event.status}</span></h2><p>Progress: {present}/{records.length} attended ({records.length ? Math.round(present / records.length * 100) : 0}%)</p><p>Condition: {event.status === 'closed' ? 'Event completed — review final attendance and no-shows.' : event.status === 'live' ? 'Live — attendance is currently being recorded.' : 'Draft — publish / set live when ready.'}</p><h3>Assigned Team Contact</h3>{assigned.length ? <ul>{assigned.map((member) => <li key={member.id}>{member.name} — {(event.memberAssignments ?? []).find((item) => item.memberId === member.id)?.designation ?? 'NGO Member'} — <a href={`mailto:${member.email}`}>{member.email}</a></li>)}</ul> : <p>No NGO Member assigned.</p>}</article> })}</section> }
+
+export default function ReportsPage() {
+  const { events, registrations, isLoading, error } = useEvents()
+  if (isLoading) return <p role="status">Loading reports…</p>
+  return <section><h1>Event Progress Reports</h1><p>Review registrations and attendance across your events.</p>{error && <p className="form-error" role="alert">{error}</p>}{events.map((event) => {
+    const records = registrations.filter((item) => item.eventId === event.id)
+    const present = records.filter((item) => item.attended).length
+    const percentage = records.length ? Math.round(present / records.length * 100) : 0
+    return <article className="event-card" key={event.id}><h2>{event.title} <span className={`status status-${event.status}`}>{event.status}</span></h2><p>{event.date} · {event.location}</p><p>Attendance: {present}/{records.length} ({percentage}%)</p><p>{event.status === 'closed' ? 'Event completed.' : event.status === 'live' ? 'Event is live.' : 'Event is in draft.'}</p></article>
+  })}{events.length === 0 && <p>No event reports yet.</p>}</section>
+}
